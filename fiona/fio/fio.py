@@ -16,7 +16,7 @@ import six.moves
 import fiona
 import fiona.crs
 from fiona.transform import transform_geom
-from fiona.fio.cli import cli
+from fiona.fio.cli import cli, processor
 from fiona.fio.cat import cat, collect, dump, distrib
 from fiona.fio.bounds import bounds
 
@@ -114,62 +114,67 @@ def insp(ctx, src_path):
 
 
 # Load command.
-@cli.command(short_help="Load GeoJSON to a dataset in another format.")
+@cli.command('load', short_help="Load GeoJSON to a dataset in another format.")
 @click.argument('output', type=click.Path(), required=True)
 @click.option('-f', '--format', '--driver', required=True,
               help="Output format driver name.")
 @click.option('--src_crs', default=None, help="Source CRS.")
 @click.option('--dst_crs', default=None, help="Destination CRS.")
 @click.option('--x-json-seq/--x-json-obj', default=False,
-              help="Read a LF-delimited JSON sequence (default is object). Experimental.")
+              help="Read a LF-delimited JSON sequence. "
+                   "Experimental (default: object).")
+@click.option('-s', '--stream', 'streaming', is_flag=True, default=False,
+              help="Use internal streams for I/O.")
+@processor
 @click.pass_context
-
-def load(ctx, output, driver, src_crs, dst_crs, x_json_seq):
+def load(stream, ctx, output, driver, src_crs, dst_crs, x_json_seq, streaming):
     """Load features from JSON to a file in another format.
 
     The input is a GeoJSON feature collection or optionally a sequence of
     GeoJSON feature objects."""
     verbosity = ctx.obj['verbosity']
     logger = logging.getLogger('fio')
-    stdin = click.get_text_stream('stdin')
+    if streaming:
+        def feature_gen():
+            for feat in stream:
+                yield feat
+    else:
+        stdin = click.get_text_stream('stdin')
+        first_line = next(stdin)
+        if first_line.startswith(u'\x1e'):
+            def feature_gen():
+                buffer = first_line.strip(u'\x1e')
+                for line in stdin:
+                    if line.startswith(u'\x1e'):
+                        if buffer:
+                            feat = json.loads(buffer)
+                            feat['geometry'] = transformer(feat['geometry'])
+                            yield feat
+                        buffer = line.strip(u'\x1e')
+                    else:
+                        buffer += line
+                else:
+                    feat = json.loads(buffer)
+                    feat['geometry'] = transformer(feat['geometry'])
+                    yield feat
+        elif x_json_seq:
+            def feature_gen():
+                yield json.loads(first_line)
+                for line in stdin:
+                    feat = json.loads(line)
+                    feat['geometry'] = transformer(feat['geometry'])
+                    yield feat
+        else:
+            def feature_gen():
+                for feat in json.load(input)['features']:
+                    feat['geometry'] = transformer(feat['geometry'])
+                    yield feat
 
     if src_crs and dst_crs:
         transformer = partial(transform_geom, src_crs, dst_crs,
                               antimeridian_cutting=True, precision=-1)
     else:
         transformer = lambda x: x
-
-    first_line = next(stdin)
-
-    # If input is RS-delimited JSON sequence.
-    if first_line.startswith(u'\x1e'):
-        def feature_gen():
-            buffer = first_line.strip(u'\x1e')
-            for line in stdin:
-                if line.startswith(u'\x1e'):
-                    if buffer:
-                        feat = json.loads(buffer)
-                        feat['geometry'] = transformer(feat['geometry'])
-                        yield feat
-                    buffer = line.strip(u'\x1e')
-                else:
-                    buffer += line
-            else:
-                feat = json.loads(buffer)
-                feat['geometry'] = transformer(feat['geometry'])
-                yield feat
-    elif x_json_seq:
-        def feature_gen():
-            yield json.loads(first_line)
-            for line in stdin:
-                feat = json.loads(line)
-                feat['geometry'] = transformer(feat['geometry'])
-                yield feat
-    else:
-        def feature_gen():
-            for feat in json.load(input)['features']:
-                feat['geometry'] = transformer(feat['geometry'])
-                yield feat
 
     try:
         source = feature_gen()

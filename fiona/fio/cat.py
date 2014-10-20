@@ -7,7 +7,7 @@ import click
 
 import fiona
 from fiona.transform import transform_geom
-from fiona.fio.cli import cli, obj_gen
+from fiona.fio.cli import cli, obj_gen, generator, processor
 
 
 def make_ld_context(context_items):
@@ -60,7 +60,7 @@ def id_record(rec):
 
 
 # Cat command
-@cli.command(short_help="Concatenate and print the features of datasets")
+@cli.command('cat', short_help="Concatenate and print the features of datasets")
 # One or more files.
 @click.argument('input', nargs=-1, type=click.Path(exists=True))
 # Coordinate precision option.
@@ -81,15 +81,19 @@ def id_record(rec):
         help="Use RS as text separator instead of LF. Experimental.")
 @click.option('--bbox', default=None, metavar="w,s,e,n",
               help="filter for features intersecting a bounding box")
+@click.option('-s', '--stream', 'streaming', is_flag=True, default=False,
+              help="Use internal streams for I/O.")
+@generator
 @click.pass_context
 def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
-        x_json_seq_rs, bbox):
+        x_json_seq_rs, bbox, streaming):
     """Concatenate and print the features of input datasets as a
     sequence of GeoJSON features."""
     verbosity = (ctx.obj and ctx.obj['verbosity']) or 2
     logger = logging.getLogger('fio')
     sink = click.get_text_stream('stdout')
 
+    logger.debug("Why no debug here?")
     dump_kwds = {'sort_keys': True}
     if indent:
         dump_kwds['indent'] = indent
@@ -99,8 +103,11 @@ def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
 
     try:
         with fiona.drivers(CPL_DEBUG=verbosity>2):
+            if not isinstance(input, (list, tuple)):
+                input = [input]
             for path in input:
                 with fiona.open(path) as src:
+                    iterkwds = {}
                     if bbox:
                         bbox = tuple(map(float, bbox.split(',')))
                     for i, feat in src.items(bbox=bbox):
@@ -111,10 +118,13 @@ def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
                                     precision=precision)
                             feat['geometry'] = g
                             feat['bbox'] = fiona.bounds(g)
-                        if x_json_seq_rs:
-                            sink.write(u'\u001e')
-                        json.dump(feat, sink, **dump_kwds)
-                        sink.write("\n")
+                        if streaming:
+                            yield feat
+                        else:
+                            if x_json_seq_rs:
+                                sink.write(u'\u001e')
+                            json.dump(feat, sink, **dump_kwds)
+                            sink.write("\n")
         sys.exit(0)
     except Exception:
         logger.exception("Failed. Exception caught")
