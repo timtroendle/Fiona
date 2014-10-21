@@ -130,6 +130,7 @@ setup(
     entry_points='''
         [console_scripts]
         fio=fiona.fio.fio:cli
+        fios=fiona.fio.fio:streaming
         ''',
     install_requires=requirements,
     tests_require=['nose'],

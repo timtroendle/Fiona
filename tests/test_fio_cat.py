@@ -34,7 +34,7 @@ def test_cat_bbox_no():
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ['cat', 'docs/data/test_uk.shp', '--bbox', '-90,10,-80,20'])
+        ['cat', '--bbox', '-90,10,-80,20', 'docs/data/test_uk.shp'])
     assert result.exit_code == 0
     assert result.output == ""
 
@@ -43,7 +43,7 @@ def test_cat_bbox_yes():
     runner = CliRunner()
     result = runner.invoke(
         cli,
-        ['cat', 'docs/data/test_uk.shp', '--bbox', '-10,50,0,60'])
+        ['cat', '--bbox', '-10,50,0,60', 'docs/data/test_uk.shp'])
     assert result.exit_code == 0
     assert result.output.count('"Feature"') == 44
 

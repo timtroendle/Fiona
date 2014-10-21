@@ -7,7 +7,7 @@ import click
 
 import fiona
 from fiona.transform import transform_geom
-from fiona.fio.cli import cli, obj_gen #, generator, processor
+from fiona.fio.cli import cli, obj_gen
 
 
 def make_ld_context(context_items):
@@ -81,11 +81,9 @@ def id_record(rec):
               help="Use RS as text separator instead of LF. Experimental.")
 @click.option('--bbox', default=None, metavar="w,s,e,n",
               help="filter for features intersecting a bounding box")
-@click.option('-s', '--stream', 'streaming', is_flag=True, default=False,
-              help="Use internal streams for I/O.")
 @click.pass_context
 def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
-        seq, bbox, streaming):
+        seq, bbox):
     """Concatenate and print the features of input datasets as a
     sequence of GeoJSON features."""
     verbosity = (ctx.obj and ctx.obj['verbosity']) or 2
@@ -112,12 +110,9 @@ def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
                                     precision=precision)
                             feat['geometry'] = g
                             feat['bbox'] = fiona.bounds(g)
-                        if streaming:
-                            yield feat
-                        else:
-                            if seq:
-                                click.echo(u'\u001e')
-                            click.echo(json.dumps(feat, **dump_kwds))
+                        if seq:
+                            click.echo(u'\u001e')
+                        click.echo(json.dumps(feat, **dump_kwds))
         sys.exit(0)
     except Exception:
         logger.exception("Failed. Exception caught")

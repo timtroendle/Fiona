@@ -24,8 +24,7 @@ def print_version(ctx, param, value):
 
 
 # The CLI command group.
-@click.group(#chain=True, invoke_without_command=True,
-             help="Fiona command line interface.")
+@click.group(help="Fiona command line interface.")
 @click.option('--verbose', '-v', count=True, help="Increase verbosity.")
 @click.option('--quiet', '-q', count=True, help="Decrease verbosity.")
 @click.option('--version', is_flag=True, callback=print_version,
@@ -62,7 +61,23 @@ def obj_gen(lines):
     return gen()
 
 
-@cli.resultcallback()
+# The Streaming command group.
+@click.group(chain=True, #invoke_without_command=True,
+             help="Fiona's streaming commands.")
+@click.option('--verbose', '-v', count=True, help="Increase verbosity.")
+@click.option('--quiet', '-q', count=True, help="Decrease verbosity.")
+@click.option('--version', is_flag=True, callback=print_version,
+              expose_value=False, is_eager=True,
+              help="Print Fiona version.")
+@click.pass_context
+def streaming(ctx, verbose, quiet):
+    verbosity = verbose - quiet
+    configure_logging(verbosity)
+    ctx.obj = {}
+    ctx.obj['verbosity'] = verbosity
+
+
+@streaming.resultcallback()
 def process_commands(processors, verbose, quiet):
     """This result callback is invoked with an iterable of all the chained
     subcommands.  As in this example each subcommand returns a function
@@ -74,6 +89,8 @@ def process_commands(processors, verbose, quiet):
 
     # Pipe it through all stream processors.
     for processor in processors:
+        if processor.func_name == 'cat':
+            continue
         stream = processor(stream)
 
     # Evaluate the stream and throw away the items.

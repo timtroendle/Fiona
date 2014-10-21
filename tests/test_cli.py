@@ -37,8 +37,7 @@ def test_cli_cat():
 
 def test_cli_cat_rs():
     result = subprocess.check_output(
-        'fio cat docs/data/test_uk.shp docs/data/test_uk.shp '
-        '--indent 2 --x-json-seq-rs',
+        'fio cat --indent 2 --seq docs/data/test_uk.shp docs/data/test_uk.shp',
         shell=True)
     texts = result.decode('utf-8').split(u'\x1e')
     assert len(texts) == 97

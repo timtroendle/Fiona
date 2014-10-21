@@ -5,11 +5,10 @@ import sys
 import click
 
 import fiona
-from fiona.fio.cli import cli, obj_gen
-
+from fiona.fio.cli import obj_gen, generator, processor, streaming
 
 # Bounds command
-@cli.command('bounds', short_help="Print the extent of GeoJSON objects")
+@streaming.command('bounds', short_help="Print the extent of GeoJSON objects")
 @click.option('--precision', type=int, default=-1, metavar="N",
               help="Decimal precision of coordinates.")
 @click.option('--explode/--no-explode', default=False,
@@ -23,8 +22,9 @@ from fiona.fio.cli import cli, obj_gen
 @click.option('--seq', is_flag=True, default=False,
               help="Use RS as text separator instead of LF. "
                    "Experimental (default: no).")
+@processor
 @click.pass_context
-def bounds(ctx, precision, explode, with_id, with_obj, seq):
+def bounds(stream, ctx, precision, explode, with_id, with_obj, seq):
     """Print the bounding boxes of GeoJSON objects read from stdin.
     
     Optionally explode collections and print the bounds of their
@@ -39,10 +39,14 @@ def bounds(ctx, precision, explode, with_id, with_obj, seq):
     """
     verbosity = (ctx.obj and ctx.obj['verbosity']) or 2
     logger = logging.getLogger('fio')
-    stdin = click.get_text_stream('stdin')
-    stdout = click.get_text_stream('stdout')
-    try:
+    if stream:
+        source = stream
+    else:
+        stdin = click.get_text_stream('stdin')
         source = obj_gen(stdin)
+    stdout = click.get_text_stream('stdout')
+
+    try:
         for i, obj in enumerate(source):
             obj_id = obj.get('id', 'collection:' + str(i))
             xs = []
@@ -62,9 +66,12 @@ def bounds(ctx, precision, explode, with_id, with_obj, seq):
                         rec = feat
                     else:
                         rec = (w, s, e, n)
-                    if seq:
-                        click.echo(u'\001e')
-                    click.echo(json.dumps(rec))
+                    if stream:
+                        yield rec
+                    else:
+                        if seq:
+                            click.echo(u'\001e')
+                        click.echo(json.dumps(rec))
                 else:
                     xs.extend([w, e])
                     ys.extend([s, n])
@@ -77,9 +84,12 @@ def bounds(ctx, precision, explode, with_id, with_obj, seq):
                     rec = obj
                 else:
                     rec = (w, s, e, n)
-                if seq:
-                    click.echo(u'\001e')
-                click.echo(json.dumps(rec))
+                if stream:
+                    yield rec
+                else:
+                    if seq:
+                        click.echo(u'\001e')
+                    click.echo(json.dumps(rec))
 
         sys.exit(0)
     except Exception:

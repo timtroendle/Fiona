@@ -16,9 +16,10 @@ import six.moves
 import fiona
 import fiona.crs
 from fiona.transform import transform_geom
-from fiona.fio.cli import cli, processor
-from fiona.fio.cat import cat, collect, dump, distrib
+from fiona.fio.cli import cli, streaming
 from fiona.fio.bounds import bounds
+from fiona.fio.cat import cat, collect, dump, distrib
+from fiona.fio.stream import open_stream, close_stream
 
 
 FIELD_TYPES_MAP_REV = dict([(v, k) for k, v in fiona.FIELD_TYPES_MAP.items()])
@@ -125,7 +126,6 @@ def insp(ctx, src_path):
                    "Experimental (default: object).")
 @click.option('-s', '--stream', 'streaming', is_flag=True, default=False,
               help="Use internal streams for I/O.")
-@processor
 @click.pass_context
 def load(stream, ctx, output, driver, src_crs, dst_crs, x_json_seq, streaming):
     """Load features from JSON to a file in another format.

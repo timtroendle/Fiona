@@ -5,7 +5,7 @@ import sys
 import click
 from click.testing import CliRunner
 
-from fiona.fio.fio import cli
+from fiona.fio.fio import streaming as cli
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -31,7 +31,7 @@ def test_bounds():
 
 def test_bounds_precision():
     runner = CliRunner()
-    result = runner.invoke(cli, ['bounds', '--precision', 1], input)
+    result = runner.invoke(cli, ['bounds', '--precision', 1], input, catch_exceptions=False)
     assert result.exit_code == 0
     assert len(json.loads(result.output.strip())) == 4
     assert json.loads(result.output.strip())[0] ==  81819.8
