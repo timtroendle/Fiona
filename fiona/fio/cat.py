@@ -7,7 +7,7 @@ import click
 
 import fiona
 from fiona.transform import transform_geom
-from fiona.fio.cli import cli, obj_gen, generator, processor
+from fiona.fio.cli import cli, obj_gen #, generator, processor
 
 
 def make_ld_context(context_items):
@@ -77,23 +77,20 @@ def id_record(rec):
 # Use ASCII RS control code to signal a sequence item (False is default).
 # See http://tools.ietf.org/html/draft-ietf-json-text-sequence-05.
 # Experimental.
-@click.option('--x-json-seq-rs/--x-json-seq-no-rs', default=True,
-        help="Use RS as text separator instead of LF. Experimental.")
+@click.option('--seq', 'seq', is_flag=True, default=False,
+              help="Use RS as text separator instead of LF. Experimental.")
 @click.option('--bbox', default=None, metavar="w,s,e,n",
               help="filter for features intersecting a bounding box")
 @click.option('-s', '--stream', 'streaming', is_flag=True, default=False,
               help="Use internal streams for I/O.")
-@generator
 @click.pass_context
 def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
-        x_json_seq_rs, bbox, streaming):
+        seq, bbox, streaming):
     """Concatenate and print the features of input datasets as a
     sequence of GeoJSON features."""
     verbosity = (ctx.obj and ctx.obj['verbosity']) or 2
     logger = logging.getLogger('fio')
-    sink = click.get_text_stream('stdout')
 
-    logger.debug("Why no debug here?")
     dump_kwds = {'sort_keys': True}
     if indent:
         dump_kwds['indent'] = indent
@@ -102,12 +99,9 @@ def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
     item_sep = compact and ',' or ', '
 
     try:
-        with fiona.drivers(CPL_DEBUG=verbosity>2):
-            if not isinstance(input, (list, tuple)):
-                input = [input]
+        with fiona.drivers(CPL_DEBUG=verbosity>2) as env:
             for path in input:
                 with fiona.open(path) as src:
-                    iterkwds = {}
                     if bbox:
                         bbox = tuple(map(float, bbox.split(',')))
                     for i, feat in src.items(bbox=bbox):
@@ -121,10 +115,9 @@ def cat(ctx, input, precision, indent, compact, ignore_errors, dst_crs,
                         if streaming:
                             yield feat
                         else:
-                            if x_json_seq_rs:
-                                sink.write(u'\u001e')
-                            json.dump(feat, sink, **dump_kwds)
-                            sink.write("\n")
+                            if seq:
+                                click.echo(u'\u001e')
+                            click.echo(json.dumps(feat, **dump_kwds))
         sys.exit(0)
     except Exception:
         logger.exception("Failed. Exception caught")
